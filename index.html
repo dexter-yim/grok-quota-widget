@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Grok 額度">
+  <meta name="application-name" content="Grok 每週額度">
+  <meta name="description" content="Grok 每週額度小工具">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <title>Grok 每週額度</title>
+  <style>
+    @font-face {
+      font-family: "GrokWidget TC";
+      src: url("fonts/widget-tc-regular.woff2") format("woff2");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+      unicode-range: U+2E80-2FDF, U+3190-319F, U+3400-9FFF, U+F900-FAFF, U+FF00-FFEF;
+    }
+    @font-face {
+      font-family: "GrokWidget TC";
+      src: url("fonts/widget-tc-bold.woff2") format("woff2");
+      font-weight: 600;
+      font-style: normal;
+      font-display: swap;
+      unicode-range: U+2E80-2FDF, U+3190-319F, U+3400-9FFF, U+F900-FAFF, U+FF00-FFEF;
+    }
+    @font-face {
+      font-family: "GrokWidget TC";
+      src: url("fonts/widget-tc-bold.woff2") format("woff2");
+      font-weight: 700;
+      font-style: normal;
+      font-display: swap;
+      unicode-range: U+2E80-2FDF, U+3190-319F, U+3400-9FFF, U+F900-FAFF, U+FF00-FFEF;
+    }
+
+    :root {
+      --bg-page: #121214;
+      --bg-card: #000000;
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text: #f4f4f4;
+      --text-dim: #8e8e8e;
+      --text-faint: #5a5a5a;
+      --track: #2c2c2e;
+      --mood: #5CDB7A;
+      --mood-soft: rgba(92, 219, 122, 0.35);
+      --safe-t: env(safe-area-inset-top, 0px);
+      --safe-b: env(safe-area-inset-bottom, 0px);
+      --ease: cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg-page);
+      color: var(--text);
+      font-family: "GrokWidget TC", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+        "Segoe UI Variable", "Segoe UI", "PingFang TC", "Hiragino Sans CNS",
+        "Microsoft JhengHei UI", "Microsoft JhengHei",
+        "Noto Sans CJK TC", "Noto Sans TC", "Source Han Sans TC", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      min-height: 100dvh;
+      min-height: 100svh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: calc(16px + var(--safe-t)) 16px calc(16px + var(--safe-b));
+      overflow: hidden;
+    }
+
+    button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+    .stage {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100%;
+      width: 100%;
+    }
+
+    /* —— Widget shell —— */
+    .widget {
+      position: relative;
+      overflow: visible;
+      display: flex;
+      align-items: center;
+      background: var(--bg-card);
+      border: 1px solid var(--card-border);
+      box-shadow:
+        0 12px 40px rgba(0, 0, 0, 0.45),
+        0 0 0 0.5px rgba(255, 255, 255, 0.04) inset;
+      color: var(--text);
+      cursor: pointer;
+      -webkit-backdrop-filter: blur(20px);
+      backdrop-filter: blur(20px);
+      transform-origin: center center;
+      transition:
+        width 0.48s var(--ease),
+        height 0.48s var(--ease),
+        padding 0.48s var(--ease),
+        border-radius 0.48s var(--ease),
+        gap 0.48s var(--ease),
+        box-shadow 0.48s var(--ease);
+    }
+
+    .widget:focus-visible {
+      outline: 2px solid var(--mood);
+      outline-offset: 3px;
+    }
+
+    /* Collapsed capsule */
+    .widget.is-collapsed {
+      width: auto;
+      height: 72px;
+      padding: 8px 18px 8px 8px;
+      gap: 10px;
+      border-radius: 999px;
+    }
+
+    /* Expanded card — close to the reference proportions */
+    .widget.is-expanded {
+      width: min(560px, calc(100vw - 24px));
+      height: auto;
+      min-height: 168px;
+      padding: 22px 22px 20px 18px;
+      gap: 18px;
+      border-radius: 40px;
+      cursor: default;
+      box-shadow:
+        0 18px 50px rgba(0, 0, 0, 0.55),
+        0 0 0 0.5px rgba(255, 255, 255, 0.06) inset;
+    }
+
+    /* —— Face —— */
+    .face {
+      position: relative;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    .widget.is-collapsed .face { width: 56px; height: 56px; }
+    .widget.is-expanded .face { width: 118px; height: 118px; }
+
+    .face-svg {
+      width: 130%;
+      height: 130%;
+      overflow: visible;
+      display: block;
+    }
+
+    .head { fill: #ffffff; }
+
+    .blush {
+      fill: #ffb3c0;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    .mood-energetic .blush { opacity: 0.28; }
+
+    .eye-oval { fill: #141414; }
+    .catch { fill: #ffffff; opacity: 0; }
+    .mood-energetic .catch { opacity: 1; }
+    .mood-good .catch { opacity: 0.7; }
+
+    .lid-stroke {
+      fill: none;
+      stroke: #141414;
+      stroke-linecap: round;
+      stroke-width: 3.6;
+    }
+    .mood-almost .lid-stroke { stroke-width: 3.2; }
+    .mood-asleep .lid-stroke { stroke-width: 3.8; }
+    .crescent { fill: none; stroke: #141414; stroke-linecap: round; stroke-width: 4.2; }
+    .squint { fill: #141414; }
+
+    /* Sparkles */
+    .sparkles { opacity: 0; }
+    .mood-energetic .sparkles { opacity: 1; }
+    .sparkle { fill: #c8f5d4; }
+
+    /* Zzz */
+    .zzz-group { opacity: 0; }
+    .mood-exhausted .zzz-group,
+    .mood-almost .zzz-group,
+    .mood-asleep .zzz-group { opacity: 1; }
+    .mood-asleep .z-letter { stroke: #e6e6e6; }
+    .mood-sleepy .zzz-group { opacity: 0.7; }
+    .z-letter { stroke: #d8d8d8; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* Bubble */
+    .bubble-wrap { opacity: 0; visibility: hidden; }
+    .mood-asleep .bubble-wrap { opacity: 1; visibility: visible; }
+    .bubble { fill: rgba(200, 228, 255, 0.62); stroke: rgba(255, 255, 255, 0.95); stroke-width: 1.25; }
+    .bubble-shine { fill: rgba(255, 255, 255, 0.85); }
+    .bubble-ring { fill: none; stroke: rgba(210, 232, 255, 0.8); stroke-width: 1.2; opacity: 0; }
+
+    /* Motion */
+    .mood-energetic .head-bob {
+      animation: bob 1.6s ease-in-out infinite;
+      transform-origin: 80px 84px;
+    }
+    .mood-energetic .eye-bounce {
+      animation: eyeBounce 1.6s ease-in-out infinite;
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+    .mood-energetic .sparkle.s1 { animation: twinkle 1.8s ease-in-out infinite; }
+    .mood-energetic .sparkle.s2 { animation: twinkle 1.8s ease-in-out 0.6s infinite; }
+    .mood-energetic .sparkle.s3 { animation: twinkle 1.6s ease-in-out 1.1s infinite; }
+
+    .mood-good .head-bob {
+      animation: bobSoft 3.2s ease-in-out infinite;
+      transform-origin: 80px 84px;
+    }
+
+    .mood-droopy .head-bob,
+    .mood-sleepy .head-bob,
+    .mood-exhausted .head-bob,
+    .mood-almost .head-bob {
+      transform-origin: 80px 84px;
+    }
+    .mood-droopy .head-bob { animation: sag 3.6s ease-in-out infinite; }
+    .mood-sleepy .head-bob { animation: nod 2.8s ease-in-out infinite; }
+    .mood-exhausted .head-bob { animation: nodHeavy 3.4s ease-in-out infinite; }
+    .mood-almost .head-bob { animation: nodHeavy 4s ease-in-out infinite; }
+    .mood-asleep .head-bob {
+      transform-origin: 80px 84px;
+      animation: sleepBreathe 3.6s ease-in-out infinite;
+    }
+
+    .blink .eye-blink {
+      transform-box: fill-box;
+      transform-origin: 50% 50%;
+    }
+    .mood-energetic .eyes-awake .eye-blink { animation: blinkFast 5s ease-in-out infinite; }
+    .mood-good .eyes-awake .eye-blink { animation: blinkFast 6s ease-in-out infinite; }
+    .mood-droopy .eyes-droopy .eye-blink { animation: blinkSlow 5.5s ease-in-out infinite; }
+
+    /* Mood eye sets */
+    .eyes-awake, .eyes-droopy, .eyes-sleepy, .eyes-exhausted, .eyes-shut { opacity: 0; }
+    .mood-energetic .eyes-awake,
+    .mood-good .eyes-awake { opacity: 1; }
+    .mood-droopy .eyes-droopy { opacity: 1; }
+    .mood-sleepy .eyes-sleepy { opacity: 1; }
+    .mood-exhausted .eyes-exhausted { opacity: 1; }
+    .mood-almost .eyes-shut,
+    .mood-asleep .eyes-shut { opacity: 1; }
+
+    .mood-energetic .eyes-awake .eye-oval { transform-box: fill-box; transform-origin: 50% 50%; transform: scaleY(1.06); }
+
+    .z1 { animation: zFloat 2.4s ease-out infinite; }
+    .z2 { animation: zFloat 2.4s ease-out 0.8s infinite; }
+    .z3 { animation: zFloat 2.4s ease-out 1.6s infinite; }
+    .mood-sleepy .z2, .mood-sleepy .z3 { display: none; }
+
+    .mood-asleep .bubble-anim {
+      transform-origin: 114px 122px;
+      animation: bubblePop 3.2s ease-out infinite;
+    }
+    .mood-asleep .bubble-ring {
+      transform-origin: 114px 122px;
+      animation: ringPop 3.2s ease-out infinite;
+    }
+
+    @keyframes bob {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-3.2px); }
+    }
+    @keyframes bobSoft {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-1.2px); }
+    }
+    @keyframes eyeBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-1.8px); }
+    }
+    @keyframes sag {
+      0%, 100% { transform: rotate(-2deg) translateY(1px); }
+      50% { transform: rotate(-4deg) translateY(2px); }
+    }
+    @keyframes nod {
+      0%, 100% { transform: rotate(7deg) translateY(1px); }
+      40% { transform: rotate(12deg) translateY(3px); }
+      70% { transform: rotate(6deg) translateY(0px); }
+    }
+    @keyframes nodHeavy {
+      0%, 100% { transform: rotate(10deg) translateY(2px); }
+      50% { transform: rotate(16deg) translateY(4px); }
+    }
+    @keyframes sleepBreathe {
+      0%, 100% { transform: rotate(16deg) scale(1); }
+      50% { transform: rotate(16deg) scale(1.03) translateY(1px); }
+    }
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.15; transform: scale(0.75) rotate(0deg); }
+      50% { opacity: 1; transform: scale(1.08) rotate(18deg); }
+    }
+    @keyframes blinkFast {
+      0%, 86%, 94%, 100% { transform: scaleY(1); }
+      89% { transform: scaleY(0.08); }
+      96.5% { transform: scaleY(0.08); }
+    }
+    @keyframes blinkSlow {
+      0%, 82%, 100% { transform: scaleY(1); }
+      88% { transform: scaleY(0.08); }
+      93% { transform: scaleY(1); }
+    }
+    @keyframes blinkSleepy {
+      0% { transform: scaleY(1); }
+      10% { transform: scaleY(0.1); }
+      22% { transform: scaleY(0.85); }
+      68% { transform: scaleY(0.7); }
+      82% { transform: scaleY(0.08); }
+      100% { transform: scaleY(1); }
+    }
+    @keyframes blinkHeavy {
+      0%, 100% { transform: scaleY(1); }
+      12% { transform: scaleY(0.08); }
+      28% { transform: scaleY(0.55); }
+      70% { transform: scaleY(0.15); }
+      88% { transform: scaleY(1); }
+    }
+    @keyframes zFloat {
+      0% { opacity: 0; transform: translate(0, 6px) scale(0.55); }
+      18% { opacity: 0.9; }
+      100% { opacity: 0; transform: translate(10px, -26px) scale(1.05); }
+    }
+    @keyframes bubblePop {
+      0% { transform: scale(0.15); opacity: 0; }
+      12% { opacity: 0.95; }
+      62% { transform: scale(1) translate(3px, -10px); opacity: 0.9; }
+      78% { transform: scale(1.08) translate(4px, -13px); opacity: 0.8; }
+      88% { transform: scale(1.55) translate(5px, -15px); opacity: 0; }
+      100% { transform: scale(0.15); opacity: 0; }
+    }
+    @keyframes ringPop {
+      0%, 72% { transform: scale(0.4); opacity: 0; }
+      82% { transform: scale(1.15) translate(4px, -13px); opacity: 0.7; }
+      100% { transform: scale(1.8) translate(5px, -16px); opacity: 0; }
+    }
+
+    /* Respect reduced motion, but keep a still pose */
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+      .mood-asleep .head-bob { transform: rotate(16deg); }
+      .mood-sleepy .head-bob { transform: rotate(8deg); }
+      .mood-exhausted .head-bob, .mood-almost .head-bob { transform: rotate(12deg); }
+      .mood-asleep .bubble-anim { opacity: 1; transform: scale(1) translate(3px, -8px); }
+      .mood-asleep .bubble-wrap { visibility: visible; }
+    }
+
+    /* Frozen poses for screenshots — static, so they don't depend on timing */
+    html.freeze * { animation: none !important; }
+    html.freeze .mood-energetic .head-bob { transform: translateY(-3px); }
+    html.freeze .mood-energetic .sparkle.s1 { opacity: 1; transform: scale(1.05) rotate(12deg); }
+    html.freeze .mood-energetic .sparkle.s2 { opacity: 0.9; transform: scale(1.08) rotate(-8deg); }
+    html.freeze .mood-energetic .sparkle.s3 { opacity: 0.75; transform: scale(1) rotate(10deg); }
+    html.freeze .mood-good .head-bob { transform: translateY(-1px); }
+    html.freeze .mood-droopy .head-bob { transform: rotate(-3deg) translateY(1px); }
+    html.freeze .mood-sleepy .head-bob { transform: rotate(10deg) translateY(2px); }
+    html.freeze .mood-exhausted .head-bob { transform: rotate(14deg) translateY(3px); }
+    html.freeze .mood-almost .head-bob { transform: rotate(14deg) translateY(3px); }
+    html.freeze .mood-asleep .head-bob { transform: rotate(16deg) translateY(2px); }
+    html.freeze .mood-asleep .bubble-anim {
+      opacity: 1;
+      transform: scale(1) translate(4px, -11px);
+    }
+    html.freeze .mood-asleep .bubble-ring {
+      opacity: 0.55;
+      transform: scale(1.25) translate(4px, -11px);
+    }
+    html.freeze .z1 { opacity: 0.95; transform: translate(3px, -8px); }
+    html.freeze .z2 { opacity: 0.8; transform: translate(6px, -16px); }
+    html.freeze .z3 { opacity: 0.7; transform: translate(1px, -4px); }
+
+    /* —— Collapsed % —— */
+    .pct-mini {
+      display: flex;
+      align-items: baseline;
+      gap: 1px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      color: var(--text);
+      white-space: nowrap;
+      transition: opacity 0.28s ease, width 0.4s var(--ease), transform 0.4s var(--ease);
+    }
+    .widget.is-expanded .pct-mini {
+      opacity: 0;
+      width: 0;
+      overflow: hidden;
+      transform: translateX(-6px);
+      pointer-events: none;
+    }
+    .widget.is-collapsed .pct-mini {
+      opacity: 1;
+      font-size: 22px;
+    }
+    .pct-mini .sign { font-size: 0.72em; font-weight: 650; letter-spacing: 0; margin-left: 1px; }
+    .pct-mini .num { color: var(--mood); }
+
+    /* —— Expanded details —— */
+    .details {
+      flex: 1 1 auto;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      opacity: 0;
+      max-width: 0;
+      overflow: hidden;
+      transform: translateX(-8px);
+      transition:
+        opacity 0.32s ease 0.08s,
+        transform 0.4s var(--ease),
+        max-width 0.48s var(--ease);
+      pointer-events: none;
+    }
+    .widget.is-expanded .details {
+      opacity: 1;
+      max-width: 420px;
+      transform: none;
+      overflow: visible;
+      pointer-events: auto;
+    }
+    .widget.is-collapsed .details {
+      transition:
+        opacity 0.18s ease,
+        transform 0.3s var(--ease),
+        max-width 0.48s var(--ease);
+    }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 22px;
+      padding-right: 28px;
+    }
+    .title {
+      font-size: 15.5px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      color: #f2f2f2;
+      white-space: nowrap;
+    }
+    .status {
+      font-size: 15.5px;
+      font-weight: 700;
+      color: var(--mood);
+      white-space: nowrap;
+      letter-spacing: 0.01em;
+    }
+
+    .pct-row {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+      margin-top: 4px;
+      line-height: 1;
+    }
+    .pct-big {
+      font-size: 40px;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      font-variant-numeric: tabular-nums;
+      color: #fff;
+      line-height: 1;
+    }
+    .pct-big .sign {
+      font-size: 0.62em;
+      font-weight: 650;
+      letter-spacing: 0;
+      margin-left: 1px;
+    }
+    .pct-label {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-dim);
+    }
+
+    .bar {
+      margin-top: 9px;
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--track);
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: var(--mood);
+      box-shadow: 0 0 10px var(--mood-soft);
+      transition: width 0.7s var(--ease), background 0.45s ease, box-shadow 0.45s ease;
+    }
+
+    .meta {
+      margin-top: 9px;
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--text-dim);
+      letter-spacing: 0.01em;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .updated {
+      margin-top: 3px;
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--text-faint);
+    }
+
+    .close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255, 255, 255, 0.22);
+      color: rgba(255, 255, 255, 0.7);
+      display: grid;
+      place-items: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, background 0.15s ease, color 0.15s ease;
+    }
+    .widget.is-expanded .close {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .close:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+    .close:focus-visible { outline: 2px solid var(--mood); outline-offset: 2px; }
+    .close svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
+
+    /* Hint under the widget (browser only, not in screenshots) */
+    .hint {
+      margin-top: 18px;
+      font-size: 12px;
+      color: #5a5a5e;
+      letter-spacing: 0.02em;
+      opacity: 0.9;
+      text-align: center;
+      transition: opacity 0.3s ease;
+    }
+    html.shot .hint,
+    html.standalone .hint { display: none; }
+    @media (display-mode: standalone), (display-mode: minimal-ui) {
+      .hint { display: none; }
+    }
+
+    /* Demo bar */
+    .demo {
+      display: none;
+      position: fixed;
+      left: 50%;
+      bottom: calc(12px + var(--safe-b));
+      transform: translateX(-50%);
+      z-index: 20;
+      background: rgba(20, 20, 22, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 10px 12px;
+      max-width: calc(100vw - 16px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(16px);
+    }
+    html.demo .demo { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; }
+    html.shot .demo { display: none !important; }
+    .demo .lab {
+      font-size: 11px;
+      color: #888;
+      margin-right: 4px;
+      padding: 0 4px;
+    }
+    .demo button {
+      font-size: 11px;
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: #2a2a2e;
+      color: #ddd;
+      white-space: nowrap;
+    }
+    .demo button:hover { background: #3a3a40; }
+    .demo button.is-on { background: var(--mood); color: #111; font-weight: 650; }
+
+    body.gone {
+      /* after close in a regular tab */
+    }
+    .widget.is-hidden { display: none; }
+    .reopen {
+      display: none;
+      color: #bbb;
+      font-size: 14px;
+      padding: 10px 16px;
+      border-radius: 999px;
+      background: #1a1a1c;
+      border: 1px solid #333;
+    }
+    .reopen.show { display: inline-flex; }
+
+    @media (max-width: 420px) {
+      .widget.is-expanded {
+        border-radius: 32px;
+        padding: 18px 16px 16px 12px;
+        gap: 12px;
+        min-height: 0;
+      }
+      .widget.is-expanded .face { width: 88px; height: 88px; }
+      .pct-big { font-size: 32px; }
+      .title, .status { font-size: 13.5px; }
+      .meta, .updated { font-size: 11.5px; white-space: normal; }
+      .title-row { padding-right: 24px; gap: 6px; flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <article
+      class="widget is-collapsed"
+      id="widget"
+      role="button"
+      tabindex="0"
+      aria-expanded="false"
+      aria-label="Grok 每週額度"
+    >
+      <div class="face mood-energetic" id="face" aria-hidden="true">
+        <svg class="face-svg" viewBox="0 0 160 160">
+          <defs>
+            <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="1.2" stdDeviation="1.4" flood-color="#000" flood-opacity="0.16"/>
+            </filter>
+          </defs>
+
+          <!-- Sparkles (energetic) -->
+          <g class="sparkles">
+            <g transform="translate(28 34)"><path class="sparkle s1" d="M0-7.2 L1.6-1.6 L7.2 0 L1.6 1.6 L0 7.2 L-1.6 1.6 L-7.2 0 L-1.6-1.6 Z"/></g>
+            <g transform="translate(134 52)"><path class="sparkle s2" d="M0-4.6 L1.1-1.1 L4.6 0 L1.1 1.1 L0 4.6 L-1.1 1.1 L-4.6 0 L-1.1-1.1 Z"/></g>
+            <g transform="translate(26 92)"><path class="sparkle s3" d="M0-3.2 L0.8-0.8 L3.2 0 L0.8 0.8 L0 3.2 L-0.8 0.8 L-3.2 0 L-0.8-0.8 Z"/></g>
+          </g>
+
+          <!-- Zzz -->
+          <g class="zzz-group">
+            <g transform="translate(126 38)">
+              <g class="z z1"><path class="z-letter" d="M0 0 H8 M8 0 L0 8 H8" stroke-width="1.5"/></g>
+            </g>
+            <g transform="translate(136 22) scale(1.2)">
+              <g class="z z2"><path class="z-letter" d="M0 0 H8 M8 0 L0 8 H8" stroke-width="1.5"/></g>
+            </g>
+            <g transform="translate(118 26) scale(0.82)">
+              <g class="z z3"><path class="z-letter" d="M0 0 H8 M8 0 L0 8 H8" stroke-width="1.4"/></g>
+            </g>
+          </g>
+
+          <g class="head-bob">
+            <circle class="head" cx="80" cy="84" r="56" filter="url(#soft)"/>
+            <ellipse class="blush" cx="50" cy="104" rx="9" ry="5.5"/>
+            <ellipse class="blush" cx="114" cy="100" rx="9" ry="5.5"/>
+
+            <!-- Awake eyes (energetic / good): reference language — tall tilted capsules -->
+            <g class="eyes-awake" transform="translate(96 70) rotate(26)">
+              <g class="eye-bounce">
+                <g class="eye-blink">
+                  <g class="eye eye-l">
+                    <rect class="eye-oval" x="-18" y="-13" width="10.5" height="27" rx="5.25"/>
+                    <circle class="catch" cx="-14.2" cy="-5.5" r="1.7"/>
+                  </g>
+                  <g class="eye eye-r">
+                    <rect class="eye-oval" x="2.5" y="-14.5" width="10.5" height="27" rx="5.25"/>
+                    <circle class="catch" cx="6.3" cy="-7" r="1.7"/>
+                  </g>
+                </g>
+              </g>
+            </g>
+
+            <!-- Droopy (有啲攰): shorter capsules, still the same tilted character -->
+            <g class="eyes-droopy" transform="translate(96 73) rotate(20)">
+              <g class="eye-blink">
+                <rect class="eye-oval" x="-17.5" y="-5" width="10.2" height="17.5" rx="5.1"/>
+                <rect class="eye-oval" x="3" y="-6" width="10.2" height="17.5" rx="5.1"/>
+              </g>
+            </g>
+
+            <!-- Sleepy (開始打瞌睡): thin squint lines with tiny open slits -->
+            <g class="eyes-sleepy" transform="translate(96 74) rotate(14)">
+              <path class="crescent" d="M-17 1 Q-12.5 7 -8 1"/>
+              <path class="crescent" d="M3.5 0 Q8 6 12.5 0"/>
+              <ellipse class="squint" cx="-12.5" cy="3.2" rx="2.2" ry="1.1"/>
+              <ellipse class="squint" cx="8" cy="2.4" rx="2.2" ry="1.1"/>
+            </g>
+
+            <!-- Exhausted (好攰): nearly closed arcs -->
+            <g class="eyes-exhausted" transform="translate(96 76) rotate(18)">
+              <path class="crescent" d="M-17 0 Q-12.5 8.5 -8 0" stroke-width="4.6"/>
+              <path class="crescent" d="M3.5 -1 Q8 7.5 12.5 -1" stroke-width="4.6"/>
+            </g>
+
+            <!-- Shut (快瞓着 / 睡死咗) -->
+            <g class="eyes-shut" transform="translate(96 76) rotate(22)">
+              <path class="lid-stroke" d="M-17 0 Q-12.5 8 -8 0"/>
+              <path class="lid-stroke" d="M3 -1 Q7.5 7 12.5 -1"/>
+            </g>
+
+            <!-- Sleep bubble -->
+            <g class="bubble-wrap">
+              <g class="bubble-anim">
+                <circle class="bubble" cx="114" cy="122" r="9.5"/>
+                <circle class="bubble-shine" cx="110.5" cy="119" r="2.6"/>
+              </g>
+              <circle class="bubble-ring" cx="114" cy="122" r="9.5"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+
+      <div class="pct-mini" id="pctMini" aria-hidden="true">
+        <span class="num" id="pctMiniNum">97.9</span><span class="sign">%</span>
+      </div>
+
+      <div class="details">
+        <div class="title-row">
+          <h1 class="title">Grok 每週額度</h1>
+          <span class="status" id="status">精神飽滿</span>
+        </div>
+        <div class="pct-row">
+          <div class="pct-big" id="pctBig"><span class="n">97.9</span><span class="sign">%</span></div>
+          <span class="pct-label">剩餘</span>
+        </div>
+        <div class="bar" id="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="97.9" aria-label="剩餘額度">
+          <div class="bar-fill" id="barFill"></div>
+        </div>
+        <div class="meta" id="meta">重置 11/11 (三) 09:24 · 還有 —</div>
+        <div class="updated" id="updated">剛剛更新</div>
+      </div>
+
+      <button class="close" id="closeBtn" type="button" aria-label="關閉" title="關閉">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8"/></svg>
+      </button>
+    </article>
+
+    <p class="hint" id="hint">點一下或移上去展開 · Esc 收合</p>
+    <button class="reopen" id="reopen" type="button">重新開啟小工具</button>
+  </div>
+
+  <div class="demo" id="demo" aria-label="表情預覽">
+    <span class="lab">預覽</span>
+    <button type="button" data-remaining="97.9">98% 精神飽滿</button>
+    <button type="button" data-remaining="75">75% 狀態良好</button>
+    <button type="button" data-remaining="55">55% 有啲攰</button>
+    <button type="button" data-remaining="35">35% 打瞌睡</button>
+    <button type="button" data-remaining="18">18% 好攰</button>
+    <button type="button" data-remaining="5">5% 快瞓着</button>
+    <button type="button" data-remaining="0">0% 睡死咗</button>
+    <button type="button" data-toggle="expand">展開 / 收合</button>
+  </div>
+
+  <script>
+  (function () {
+    const SEED = {
+      plan: "Super",
+      weeklyUsedPercent: 2.1,
+      remainingPercent: 97.9,
+      resetsAt: "2026-11-11T09:24:00+08:00",
+      updatedAt: "2026-11-10T11:38:03+08:00",
+      timezone: "Asia/Hong_Kong"
+    };
+
+    const MOODS = [
+      { min: 85, id: "energetic",  label: "精神飽滿",   color: "#5CDB7A" },
+      { min: 65, id: "good",       label: "狀態良好",   color: "#A8DC4A" },
+      { min: 45, id: "droopy",     label: "有啲攰",     color: "#E4C84A" },
+      { min: 25, id: "sleepy",     label: "開始打瞌睡", color: "#F0A202" },
+      { min: 10, id: "exhausted",  label: "好攰",       color: "#F27935" },
+      { min: 0.5,id: "almost",     label: "快瞓着",     color: "#F0533D" },
+      { min: 0,  id: "asleep",     label: "睡死咗",     color: "#E24545" }
+    ];
+
+    const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
+
+    const params = new URLSearchParams(location.search);
+    const isDemo = params.has("demo") && params.get("demo") !== "0";
+    const isShot = params.has("shot");
+    const wantFreeze = params.has("freeze") || isShot;
+
+    const widget = document.getElementById("widget");
+    const face = document.getElementById("face");
+    const statusEl = document.getElementById("status");
+    const pctMiniNum = document.getElementById("pctMiniNum");
+    const pctBig = document.getElementById("pctBig");
+    const bar = document.getElementById("bar");
+    const barFill = document.getElementById("barFill");
+    const metaEl = document.getElementById("meta");
+    const updatedEl = document.getElementById("updated");
+    const closeBtn = document.getElementById("closeBtn");
+    const reopenBtn = document.getElementById("reopen");
+    const hint = document.getElementById("hint");
+    const demo = document.getElementById("demo");
+
+    let data = { ...SEED };
+    let remainingOverride = null;
+    let expanded = false;
+    let pinned = false;
+    let hoverTimer = null;
+    let leaveTimer = null;
+    const fineHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+
+    if (isDemo) document.documentElement.classList.add("demo");
+    if (isShot) document.documentElement.classList.add("shot");
+    if (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone) {
+      document.documentElement.classList.add("standalone");
+    }
+    if (wantFreeze) {
+      document.documentElement.classList.add("freeze");
+      const fr = params.get("freeze") || params.get("shot");
+      if (fr && fr !== "1" && fr !== "true") {
+        document.documentElement.classList.add("freeze-" + fr);
+      }
+    }
+
+    function moodFor(remaining) {
+      const r = Math.max(0, Math.min(100, remaining));
+      return MOODS.find((m) => r >= m.min) || MOODS[MOODS.length - 1];
+    }
+
+    function formatPct(n) {
+      const r = Math.round(n * 10) / 10;
+      if (Math.abs(r - Math.round(r)) < 0.05) return String(Math.round(r));
+      return r.toFixed(1);
+    }
+
+    function hexToRgb(hex) {
+      const h = hex.replace("#", "");
+      return [
+        parseInt(h.slice(0, 2), 16),
+        parseInt(h.slice(2, 4), 16),
+        parseInt(h.slice(4, 6), 16)
+      ];
+    }
+
+    function remainingOf(d) {
+      if (remainingOverride !== null) return remainingOverride;
+      if (typeof d.remainingPercent === "number") return d.remainingPercent;
+      if (typeof d.weeklyUsedPercent === "number") return Math.max(0, 100 - d.weeklyUsedPercent);
+      return 0;
+    }
+
+    function parseHkt(iso) {
+      // Dates already carry +08:00; Date will parse correctly.
+      return new Date(iso);
+    }
+
+    function pad(n) { return String(n).padStart(2, "0"); }
+
+    function formatResetLine(resetsAt, now) {
+      const t = parseHkt(resetsAt);
+      if (isNaN(t.getTime())) return "重置時間未明";
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Hong_Kong",
+        month: "numeric",
+        day: "numeric",
+        weekday: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23"
+      }).formatToParts(t);
+      const get = (type) => (parts.find((p) => p.type === type) || {}).value;
+      const month = get("month");
+      const day = get("day");
+      const hour = get("hour");
+      const minute = get("minute");
+      // weekday via HKT calendar
+      const weekdayName = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Hong_Kong", weekday: "short"
+      }).format(t);
+      const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+      const wd = WEEKDAYS[map[weekdayName] ?? t.getDay()];
+
+      const ms = t.getTime() - now.getTime();
+      let countdown;
+      if (ms <= 0) {
+        countdown = "已到重置時間";
+      } else {
+        const totalMin = Math.floor(ms / 60000);
+        const days = Math.floor(totalMin / (60 * 24));
+        const hours = Math.floor((totalMin - days * 24 * 60) / 60);
+        const mins = totalMin % 60;
+        if (days >= 1) {
+          countdown = mins === 0 && hours === 0
+            ? ("還有 " + days + " 天")
+            : ("還有 " + days + " 天 " + hours + " 小時");
+        } else if (hours >= 1) {
+          countdown = mins === 0
+            ? ("還有 " + hours + " 小時")
+            : ("還有 " + hours + " 小時 " + mins + " 分鐘");
+        } else if (mins >= 1) {
+          countdown = "還有 " + mins + " 分鐘";
+        } else {
+          countdown = "即將重置";
+        }
+      }
+      return "重置 " + month + "/" + day + " (" + wd + ") " + hour + ":" + minute + " · " + countdown;
+    }
+
+    function formatUpdated(iso, now) {
+      const t = parseHkt(iso);
+      if (isNaN(t.getTime())) return "剛剛更新";
+      const sec = Math.max(0, Math.floor((now.getTime() - t.getTime()) / 1000));
+      if (sec < 90) return "剛剛更新";
+      const min = Math.floor(sec / 60);
+      if (min < 60) return min + " 分鐘前更新";
+      const hours = Math.floor(min / 60);
+      if (hours < 24) return hours + " 小時前更新";
+      const days = Math.floor(hours / 24);
+      return days + " 日前更新";
+    }
+
+    function applyTheme(mood) {
+      const root = document.documentElement;
+      root.style.setProperty("--mood", mood.color);
+      const [r, g, b] = hexToRgb(mood.color);
+      root.style.setProperty("--mood-soft", "rgba(" + r + ", " + g + ", " + b + ", 0.4)");
+    }
+
+    function render() {
+      const remaining = remainingOf(data);
+      const mood = moodFor(remaining);
+      const pct = formatPct(remaining);
+
+      applyTheme(mood);
+      face.className = "face mood-" + mood.id;
+      statusEl.textContent = mood.label;
+      pctMiniNum.textContent = pct;
+      pctBig.innerHTML = "<span class='n'>" + pct + "</span><span class='sign'>%</span>";
+      barFill.style.width = Math.max(0, Math.min(100, remaining)) + "%";
+      bar.setAttribute("aria-valuenow", String(remaining));
+      widget.setAttribute("aria-label", "Grok 每週額度，剩餘 " + pct + "%，" + mood.label);
+
+      const now = new Date();
+      metaEl.textContent = formatResetLine(data.resetsAt, now);
+      updatedEl.textContent = formatUpdated(data.updatedAt, now);
+
+      if (isDemo) {
+        demo.querySelectorAll("button[data-remaining]").forEach((btn) => {
+          btn.classList.toggle("is-on", Number(btn.dataset.remaining) === remaining);
+        });
+      }
+    }
+
+    function setExpanded(next, opts) {
+      const pin = opts && opts.pin;
+      expanded = !!next;
+      if (pin === true) pinned = true;
+      if (pin === false) pinned = false;
+      if (!expanded) pinned = false;
+      widget.classList.toggle("is-expanded", expanded);
+      widget.classList.toggle("is-collapsed", !expanded);
+      widget.setAttribute("aria-expanded", expanded ? "true" : "false");
+      fitWindow();
+    }
+
+    function fitWindow() {
+      try {
+        if (!window.resizeTo) return;
+        // Only attempt in a standalone / app-mode window, not a normal tab.
+        const appLike = window.matchMedia("(display-mode: standalone)").matches
+          || window.navigator.standalone
+          || window.outerWidth < 700;
+        if (window.outerHeight > 900 && window.outerWidth > 900) return;
+        if (expanded) window.resizeTo(620, 280);
+        else window.resizeTo(260, 160);
+      } catch (e) { /* ignore */ }
+    }
+
+    function toggleExpanded() {
+      setExpanded(!expanded, { pin: !expanded });
+    }
+
+    // Interactions
+    widget.addEventListener("click", (e) => {
+      if (e.target.closest(".close")) return;
+      toggleExpanded();
+    });
+    widget.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        toggleExpanded();
+      }
+    });
+
+    if (fineHover) {
+      widget.addEventListener("mouseenter", () => {
+        clearTimeout(leaveTimer);
+        if (pinned || expanded) return;
+        hoverTimer = setTimeout(() => setExpanded(true), 140);
+      });
+      widget.addEventListener("mouseleave", () => {
+        clearTimeout(hoverTimer);
+        if (pinned) return;
+        leaveTimer = setTimeout(() => setExpanded(false), 220);
+      });
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") setExpanded(false, { pin: false });
+    });
+
+    document.getElementById("stage").addEventListener("click", (e) => {
+      if (e.target.closest(".widget") || e.target.closest(".demo") || e.target.closest(".reopen")) return;
+      if (expanded) setExpanded(false, { pin: false });
+    });
+
+    closeBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const openedByScript = !window.opener && window.history.length <= 1;
+      try { window.close(); } catch (err) {}
+      setTimeout(() => {
+        // If the window is still here, hide the widget instead.
+        widget.classList.add("is-hidden");
+        hint.style.display = "none";
+        reopenBtn.classList.add("show");
+        try { if (window.resizeTo) window.resizeTo(280, 140); } catch (err) {}
+      }, 180);
+    });
+
+    reopenBtn.addEventListener("click", () => {
+      widget.classList.remove("is-hidden");
+      reopenBtn.classList.remove("show");
+      hint.style.display = "";
+      setExpanded(false, { pin: false });
+    });
+
+    // Demo controls
+    if (isDemo) {
+      demo.addEventListener("click", (e) => {
+        const btn = e.target.closest("button");
+        if (!btn) return;
+        if (btn.dataset.toggle === "expand") {
+          toggleExpanded();
+          return;
+        }
+        if (btn.dataset.remaining != null) {
+          remainingOverride = Number(btn.dataset.remaining);
+          render();
+        }
+      });
+    }
+
+    // URL overrides
+    if (params.has("remaining")) {
+      remainingOverride = Number(params.get("remaining"));
+    }
+    if (params.get("expanded") === "1" || params.get("expanded") === "true") {
+      setExpanded(true, { pin: true });
+    }
+    if (params.get("collapsed") === "1") {
+      setExpanded(false, { pin: false });
+    }
+
+    async function loadQuota() {
+      if (location.protocol === "file:") {
+        data = Object.assign({}, SEED);
+        render();
+        return;
+      }
+      try {
+        const res = await fetch("quota.json", { cache: "no-store" });
+        if (!res.ok) throw new Error("quota.json " + res.status);
+        const json = await res.json();
+        if (json && (typeof json.remainingPercent === "number" || typeof json.weeklyUsedPercent === "number")) {
+          data = Object.assign({}, SEED, json);
+        }
+      } catch (e) {
+        data = Object.assign({}, SEED);
+      }
+      render();
+    }
+
+    loadQuota();
+    render();
+    setInterval(render, 1000);
+    setInterval(loadQuota, 60 * 1000);
+
+    // Default: collapsed on desktop windows; expanded on phones/tablets.
+    if (!params.has("expanded") && !params.has("collapsed")) {
+      const standalone = document.documentElement.classList.contains("standalone");
+      const narrow = window.matchMedia("(max-width: 900px)").matches;
+      const coarse = window.matchMedia("(pointer: coarse)").matches;
+      if (standalone || narrow || coarse) setExpanded(true, { pin: true });
+    }
+
+    // Safari (not yet added to home screen): show install hint.
+    const hint = document.getElementById("hint");
+    if (hint && !document.documentElement.classList.contains("standalone")) {
+      const ua = navigator.userAgent || "";
+      const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      if (isIOS) {
+        hint.textContent = "用 Safari 底欄分享按鈕，然後揀「加入主畫面」";
+      }
+    }
+  })();
+  </script>
+</body>
+</html>
