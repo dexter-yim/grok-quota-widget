@@ -1,0 +1,82 @@
+name: Sync quota.json from publish issue
+
+on:
+  issues:
+    types: [edited]
+
+jobs:
+  sync:
+    if: >
+      github.event.issue.number == 2
+      && github.event.sender.login == 'dexter-yim'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write quota.json from issue body
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          python3 <<'PY'
+          import json, os, pathlib, re, sys
+
+          body = os.environ.get("ISSUE_BODY") or ""
+          candidates = re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", body, flags=re.S)
+          raw = candidates[-1] if candidates else body.strip()
+          try:
+              data = json.loads(raw)
+          except json.JSONDecodeError as e:
+              print(f"invalid json: {e}", file=sys.stderr)
+              sys.exit(1)
+
+          if not isinstance(data, dict):
+              print("quota payload must be an object", file=sys.stderr)
+              sys.exit(1)
+
+          allowed = {
+              "plan": str,
+              "weeklyUsedPercent": (int, float),
+              "remainingPercent": (int, float),
+              "resetsAt": str,
+              "updatedAt": str,
+              "timezone": str,
+          }
+          extra = set(data) - set(allowed)
+          missing = set(allowed) - set(data)
+          if extra or missing:
+              print(f"unexpected keys extra={sorted(extra)} missing={sorted(missing)}", file=sys.stderr)
+              sys.exit(1)
+          for key, typ in allowed.items():
+              if not isinstance(data[key], typ):
+                  print(f"{key} has wrong type", file=sys.stderr)
+                  sys.exit(1)
+          for key in ("weeklyUsedPercent", "remainingPercent"):
+              val = float(data[key])
+              if not 0 <= val <= 100:
+                  print(f"{key} out of range", file=sys.stderr)
+                  sys.exit(1)
+
+          out = {
+              "plan": data["plan"],
+              "weeklyUsedPercent": data["weeklyUsedPercent"],
+              "remainingPercent": data["remainingPercent"],
+              "resetsAt": data["resetsAt"],
+              "updatedAt": data["updatedAt"],
+              "timezone": data["timezone"],
+          }
+          pathlib.Path("quota.json").write_text(json.dumps(out, indent=2) + "\n")
+          print("wrote quota.json")
+          PY
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add quota.json
+          if git diff --staged --quiet; then
+            echo "quota.json unchanged"
+            exit 0
+          fi
+          git commit -m "Update quota.json"
+          git push
